@@ -33,6 +33,21 @@
   .links a.s{background:var(--accent-2);color:var(--accent)}
   .links a.off{opacity:.45;pointer-events:none}
   .empty{color:var(--muted);font-size:15px}
+  .panel{margin-top:14px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;display:none}
+  .panel.open{display:block}
+  .panel h3{font-size:17px;margin:0 0 8px}
+  .panel ol{margin:0 0 12px;padding-left:20px;font-size:14px}
+  .panel li{margin-bottom:6px}
+  .panel .f{margin-top:10px}
+  .panel input,.panel textarea{width:100%;padding:9px 11px;font-size:15px;border:1px solid var(--line);border-radius:8px;font-family:inherit}
+  .panel .row{margin-bottom:10px}
+  .panel .row label{margin-bottom:4px}
+  .panel .ro{font-size:14px;background:var(--card);border-radius:8px;padding:8px 10px}
+  .panel button{width:100%;padding:12px;font-size:16px;font-weight:600;border:0;border-radius:10px;background:var(--accent);color:#fff;cursor:pointer}
+  .panel .small{font-size:12px;color:var(--muted);margin-top:8px}
+  .panel .err{color:#b42318;font-size:14px;margin-bottom:8px;display:none}
+  .panel .done{display:none;font-size:14px;margin-top:10px}
+  .panel .done textarea{margin-top:6px;height:150px;font-size:13px}
   @media (max-width:460px){.cd span{font-size:24px}.links{grid-template-columns:1fr}td.k{white-space:normal}}
 </style>
 </head>
@@ -43,8 +58,28 @@
   <select id="g"><option value="">— группа —</option></select>
   <div class="box" id="out"><div class="empty">Выберите группу, чтобы увидеть даты сессии и что нужно сдать.</div></div>
   <div class="links">
-    <a class="s" id="spr" target="_blank" rel="noopener">Справка-вызов</a>
+    <a class="s" id="spr" href="#spravka">Справка-вызов</a>
     <a class="p" id="sdo" target="_blank" rel="noopener">СДО «Прометей»</a>
+  </div>
+  <div class="panel" id="spravka">
+    <h3>Справка-вызов</h3>
+    <ol>
+      <li>По справке-вызову работодатель предоставляет оплачиваемый учебный отпуск на время сессии (ст. 174 Трудового кодекса РФ).</li>
+      <li>Справку оформляет заочное отделение техникума — с номером, подписью и печатью. Бланк, заполненный самостоятельно, недействителен.</li>
+      <li>Закажите справку заранее, до начала сессии, через форму ниже или по телефону 8 (84454) 5-20-79.</li>
+      <li>Верхнюю часть справки отдайте работодателю до начала сессии.</li>
+      <li>Нижнюю (отрывную) часть техникум заполнит после сессии — с датами, когда вы фактически были на сессии. Её тоже сдайте работодателю.</li>
+    </ol>
+    <div class="f">
+      <div class="err" id="sErr"></div>
+      <div class="row"><label>Группа и сессия</label><div class="ro" id="sGroup">Сначала выберите группу вверху</div></div>
+      <div class="row"><label for="sFio">Фамилия, имя, отчество полностью</label><input id="sFio" autocomplete="name"></div>
+      <div class="row"><label for="sEmp">Работодатель — полное наименование организации</label><input id="sEmp" autocomplete="organization"></div>
+      <div class="row"><label for="sTel">Телефон для связи</label><input id="sTel" type="tel" autocomplete="tel"></div>
+      <button type="button" id="sSend">Отправить заявку</button>
+      <div class="small">Откроется ваша почта с готовым письмом в заочное отделение — останется нажать «Отправить». Отправляя заявку, вы соглашаетесь на обработку персональных данных для оформления справки.</div>
+      <div class="done" id="sDone">Если почта не открылась, скопируйте текст и отправьте его на <b id="sMail"></b>:<textarea id="sText" readonly></textarea></div>
+    </div>
   </div>
 </div>
 <script>
@@ -52,7 +87,7 @@
    Даты сессий: ["ГГГГ-ММ-ДД начало", "ГГГГ-ММ-ДД конец"].
    null — даты ещё не утверждены (виджет напишет «уточняются»). */
 var SDO_URL = "http://dognt.ru/portal/";
-var SPRAVKA_URL = "";   // ссылка на бланк справки-вызова
+var SPRAVKA_EMAIL = "zaochnoe_otdelenie_gnt@mail.ru";   // куда приходят заявки на справку-вызов
 var START_TIME = "08:00";
 var SESSIONS = {
   "Э-420": [["2026-11-30","2026-12-14"], ["2027-03-22","2027-04-05"]],
@@ -101,8 +136,8 @@ function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;
 
 var sel=document.getElementById("g"),out=document.getElementById("out");
 document.getElementById("sdo").href=SDO_URL;
-var spr=document.getElementById("spr");
-if(SPRAVKA_URL){spr.href=SPRAVKA_URL;}else{spr.classList.add("off");spr.title="Ссылка скоро появится";}
+var spr=document.getElementById("spr"),panel=document.getElementById("spravka");
+spr.addEventListener("click",function(e){e.preventDefault();panel.classList.toggle("open");fillGroup();if(panel.classList.contains("open"))panel.scrollIntoView({behavior:"smooth",block:"start"});});
 
 var bySpec={};
 PLANS.forEach(function(g,i){var k=g.place==='Жирновск'?'Жирновск — '+g.spec:g.place;(bySpec[k]=bySpec[k]||[]).push(i);});
@@ -146,6 +181,26 @@ function draw(){
   }
   document.getElementById("top").innerHTML=top;
 }
+function sessionFor(g){var st=state(g.name,new Date());return (st.mode==="before"||st.mode==="live")?st.s:null;}
+function fillGroup(){var el=document.getElementById("sGroup");if(sel.value===""){el.textContent="Сначала выберите группу вверху";return;}
+  var g=PLANS[sel.value],s=sessionFor(g);
+  el.textContent=g.name+", "+g.course+" курс"+(g.place!=="Жирновск"?" ("+g.place+")":"")+" — "+(s?"сессия с "+fmt(s.a)+" по "+fmt(s.b):"даты ближайшей сессии уточняются");}
+sel.addEventListener("change",fillGroup);
+document.getElementById("sMail").textContent=SPRAVKA_EMAIL;
+document.getElementById("sSend").addEventListener("click",function(){
+  var err=document.getElementById("sErr"),fio=document.getElementById("sFio").value.trim(),emp=document.getElementById("sEmp").value.trim(),tel=document.getElementById("sTel").value.trim();
+  var msg=sel.value===""?"Выберите группу вверху.":!fio?"Укажите ФИО.":!emp?"Укажите работодателя.":!tel?"Укажите телефон.":"";
+  err.textContent=msg;err.style.display=msg?"block":"none";if(msg)return;
+  var g=PLANS[sel.value],s=sessionFor(g);
+  var subj="Заявка на справку-вызов — "+g.name+" — "+fio;
+  var body="Прошу оформить справку-вызов.\n\nФИО: "+fio+"\nГруппа: "+g.name+", "+g.course+" курс"+(g.place!=="Жирновск"?", "+g.place:"")+
+    (g.spec?"\nСпециальность: "+g.spec:"")+"\nСессия: "+(s?"с "+fmt(s.a)+" по "+fmt(s.b):"ближайшая (даты уточняются)")+
+    "\nРаботодатель: "+emp+"\nТелефон: "+tel+"\n";
+  document.getElementById("sText").value="Тема: "+subj+"\n\n"+body;
+  document.getElementById("sDone").style.display="block";
+  location.href="mailto:"+SPRAVKA_EMAIL+"?subject="+encodeURIComponent(subj)+"&body="+encodeURIComponent(body);
+});
+fillGroup();
 draw();setInterval(draw,1000);
 </script>
 </body>
