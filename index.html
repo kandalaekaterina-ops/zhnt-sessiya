@@ -46,6 +46,8 @@
   .panel button{width:100%;padding:12px;font-size:16px;font-weight:600;border:0;border-radius:10px;background:var(--accent);color:#fff;cursor:pointer}
   .panel .small{font-size:12px;color:var(--muted);margin-top:8px}
   .panel .err{color:#b42318;font-size:14px;margin-bottom:8px;display:none}
+  .panel .ok{display:none;margin-top:10px;padding:10px 12px;border-radius:8px;background:#e7f5ec;color:var(--ok);font-size:14px;font-weight:600}
+  .panel button:disabled{opacity:.6;cursor:wait}
   .panel .done{display:none;font-size:14px;margin-top:10px}
   .panel .done textarea{margin-top:6px;height:150px;font-size:13px}
   @media (max-width:460px){.cd span{font-size:24px}.links{grid-template-columns:1fr}td.k{white-space:normal}}
@@ -77,8 +79,9 @@
       <div class="row"><label for="sEmp">Работодатель — полное наименование организации</label><input id="sEmp" autocomplete="organization"></div>
       <div class="row"><label for="sTel">Телефон для связи</label><input id="sTel" type="tel" autocomplete="tel"></div>
       <button type="button" id="sSend">Отправить заявку</button>
-      <div class="small">Откроется ваша почта с готовым письмом в заочное отделение — останется нажать «Отправить». Отправляя заявку, вы соглашаетесь на обработку персональных данных для оформления справки.</div>
-      <div class="done" id="sDone">Если почта не открылась, скопируйте текст и отправьте его на <b id="sMail"></b>:<textarea id="sText" readonly></textarea></div>
+      <div class="small">Заявка придёт на почту заочного отделения. Отправляя её, вы соглашаетесь на обработку персональных данных для оформления справки.</div>
+      <div class="ok" id="sOk">Заявка отправлена. Заочное отделение свяжется с вами, когда справка будет готова.</div>
+      <div class="done" id="sDone">Не удалось отправить заявку. Скопируйте текст и отправьте его письмом на <b id="sMail"></b> или позвоните 8 (84454) 5-20-79:<textarea id="sText" readonly></textarea></div>
     </div>
   </div>
 </div>
@@ -196,9 +199,18 @@ document.getElementById("sSend").addEventListener("click",function(){
   var body="Прошу оформить справку-вызов.\n\nФИО: "+fio+"\nГруппа: "+g.name+", "+g.course+" курс"+(g.place!=="Жирновск"?", "+g.place:"")+
     (g.spec?"\nСпециальность: "+g.spec:"")+"\nСессия: "+(s?"с "+fmt(s.a)+" по "+fmt(s.b):"ближайшая (даты уточняются)")+
     "\nРаботодатель: "+emp+"\nТелефон: "+tel+"\n";
+  var btn=this,ok=document.getElementById("sOk"),done=document.getElementById("sDone");
   document.getElementById("sText").value="Тема: "+subj+"\n\n"+body;
-  document.getElementById("sDone").style.display="block";
-  location.href="mailto:"+SPRAVKA_EMAIL+"?subject="+encodeURIComponent(subj)+"&body="+encodeURIComponent(body);
+  ok.style.display="none";done.style.display="none";
+  btn.disabled=true;btn.textContent="Отправляем…";
+  fetch("https://formsubmit.co/ajax/"+SPRAVKA_EMAIL,{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},
+    body:JSON.stringify({_subject:subj,_template:"table",_captcha:"false",
+      "ФИО":fio,"Группа":g.name+", "+g.course+" курс"+(g.place!=="Жирновск"?", "+g.place:""),"Специальность":g.spec||"—",
+      "Сессия":s?"с "+fmt(s.a)+" по "+fmt(s.b):"ближайшая (даты уточняются)","Работодатель":emp,"Телефон":tel})})
+  .then(function(r){return r.json().catch(function(){return {};}).then(function(j){if(!r.ok||String(j.success)==="false")throw new Error(j.message||r.status);});})
+  .then(function(){ok.style.display="block";["sFio","sEmp","sTel"].forEach(function(id){document.getElementById(id).value="";});})
+  .catch(function(){done.style.display="block";})
+  .then(function(){btn.disabled=false;btn.textContent="Отправить заявку";});
 });
 fillGroup();
 draw();setInterval(draw,1000);
